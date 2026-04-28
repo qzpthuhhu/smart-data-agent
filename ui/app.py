@@ -92,7 +92,7 @@ st.markdown("""
 def init_session_state():
     """初始化会话状态"""
     if 'workflow' not in st.session_state:
-        st.session_state.workflow = DataAnalysisWorkflow(use_checkpointer=True)
+        DataAnalysisWorkflow(use_checkpointer=False) = DataAnalysisWorkflow(use_checkpointer=True)
     
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
@@ -162,13 +162,11 @@ def render_sidebar():
             "📈 数据分析": "analysis",
             "📊 可视化": "visualization",
             "💬 对话历史": "history",
-            "⚙️ 设置": "settings"
+            "⚙️ 设置": "settings",
+            "🔄 完整演示": "workflow_demo"
         }
         
         selected = st.radio("选择页面", list(pages.keys()), index=0)
-        
-            "🔄 完整演示": "workflow_demo",
-        st.markdown("---")
         
         # 统计信息
         st.markdown("### 📊 统计信息")
@@ -318,7 +316,7 @@ def render_query_page():
         with st.spinner("正在处理查询..."):
             try:
                 # 执行查询
-                result = st.session_state.workflow.run(query_input, st.session_state.session_id)
+                result = DataAnalysisWorkflow(use_checkpointer=False).run(query_input, st.session_state.session_id)
                 
                 # 提取结果
                 if result:
@@ -470,7 +468,7 @@ def render_analysis_page():
                 # 构建分析查询
                 analysis_query = f"对{dataset}表进行{analysis_types[analysis_type]}，{analysis_target}"
                 
-                result = st.session_state.workflow.run(analysis_query, st.session_state.session_id)
+                result = DataAnalysisWorkflow(use_checkpointer=False).run(analysis_query, st.session_state.session_id)
                 
                 if result:
                     for state in result.values():
@@ -584,7 +582,7 @@ def render_visualization_page():
                 # 构建可视化查询
                 viz_query = f"生成{chart_types[chart_type]}图表，X轴为{x_axis}，Y轴为{y_axis}，标题为{chart_title}"
                 
-                result = st.session_state.workflow.run(viz_query, st.session_state.session_id)
+                result = DataAnalysisWorkflow(use_checkpointer=False).run(viz_query, st.session_state.session_id)
                 
                 if result:
                     for state in result.values():
@@ -710,7 +708,7 @@ def render_history_page():
                     if st.button(f"🔄 复现", key=f"replay_{i}"):
                         # 重新执行查询
                         query = chat.get('query', '')
-                        st.session_state.workflow.run(query, st.session_state.session_id)
+                        DataAnalysisWorkflow(use_checkpointer=False).run(query, st.session_state.session_id)
                         st.success("查询已重新执行")
                 
                 with col2:
@@ -867,37 +865,6 @@ def render_settings_page():
 
 # ============ 主函数 ============
 
-def main():
-    """主函数"""
-    # 初始化
-    init_session_state()
-    
-    # 渲染侧边栏
-    current_page = render_sidebar()
-    
-    # 根据选择渲染页面
-    if current_page == "home" or current_page == "settings":
-        render_home_page()
-    elif current_page == "query":
-        render_query_page()
-    elif current_page == "analysis":
-        render_analysis_page()
-    elif current_page == "visualization":
-        render_visualization_page()
-    elif current_page == "history":
-        render_history_page()
-    elif current_page == "workflow_demo":
-        render_workflow_demo_page()
-    else:
-        render_settings_page()
-
-
-if __name__ == "__main__":
-    main()
-
-
-# ============ 完整工作流演示页面 ============
-
 def render_workflow_demo_page():
     """展示完整的多Agent协作工作流"""
     st.header("🔄 完整工作流演示")
@@ -928,7 +895,7 @@ def render_workflow_demo_page():
     
     if run_button and user_query:
         # 创建工作流实例
-        workflow = st.session_state.workflow
+        workflow = DataAnalysisWorkflow(use_checkpointer=False)
         
         # 展示区域
         st.markdown("---")
@@ -1091,4 +1058,35 @@ def render_workflow_demo_page():
             
             st.success("🎉 完整工作流执行完成！")
 
+
+def main():
+    """主函数"""
+    # 初始化
+    init_session_state()
+    
+    # 渲染侧边栏
+    current_page = render_sidebar()
+    
+    # 根据选择渲染页面
+    if current_page == "home" or current_page == "settings":
+        render_home_page()
+    elif current_page == "query":
+        render_query_page()
+    elif current_page == "analysis":
+        render_analysis_page()
+    elif current_page == "visualization":
+        render_visualization_page()
+    elif current_page == "history":
+        render_history_page()
+    elif current_page == "workflow_demo":
+        render_workflow_demo_page()
+    else:
+        render_settings_page()
+
+
+if __name__ == "__main__":
+    main()
+
+
+# ============ 完整工作流演示页面 ============
 
