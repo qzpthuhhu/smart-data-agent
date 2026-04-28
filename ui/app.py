@@ -167,6 +167,7 @@ def render_sidebar():
         
         selected = st.radio("选择页面", list(pages.keys()), index=0)
         
+            "🔄 完整演示": "workflow_demo",
         st.markdown("---")
         
         # 统计信息
@@ -885,9 +886,209 @@ def main():
         render_visualization_page()
     elif current_page == "history":
         render_history_page()
+    elif current_page == "workflow_demo":
+        render_workflow_demo_page()
     else:
         render_settings_page()
 
 
 if __name__ == "__main__":
     main()
+
+
+# ============ 完整工作流演示页面 ============
+
+def render_workflow_demo_page():
+    """展示完整的多Agent协作工作流"""
+    st.header("🔄 完整工作流演示")
+    st.markdown("""
+    ### 这个页面展示多Agent协作过程
+    
+    输入一个复杂查询，系统会：
+    1. **Supervisor Agent** - 意图识别和任务规划
+    2. **Query Agent** - 数据查询（如需要）
+    3. **Analysis Agent** - 数据分析（如需要）
+    4. **Visualization Agent** - 可视化（如需要）
+    5. **结果整合** - 生成最终响应
+    
+    你可以看到每个Agent的思考和执行过程。
+    """)
+    
+    # 输入区
+    st.markdown("### 📝 输入查询")
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        user_query = st.text_input(
+            "输入你的问题",
+            value="分析最近30天的销售趋势，并生成可视化图表",
+            key="demo_query_input"
+        )
+    with col2:
+        run_button = st.button("🚀 运行完整工作流", type="primary")
+    
+    if run_button and user_query:
+        # 创建工作流实例
+        workflow = st.session_state.workflow
+        
+        # 展示区域
+        st.markdown("---")
+        st.markdown("### 🤖 Agent协作过程")
+        
+        # 创建进度展示容器
+        progress_container = st.container()
+        
+        # 创建结果展示容器
+        result_container = st.container()
+        
+        with progress_container:
+            # Step 1: Supervisor
+            st.markdown("#### 🎯 Step 1: Supervisor Agent - 意图识别与任务规划")
+            with st.spinner("Supervisor正在分析..."):
+                # 先获取意图识别结果
+                from graph.supervisor import supervisor_agent
+                intent_result = supervisor_agent.recognize_intent(user_query)
+                
+                # 展示意图识别结果
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("识别意图", intent_result.get("intent", "unknown"))
+                with col2:
+                    st.metric("任务类型", intent_result.get("task_type", "unknown"))
+                with col3:
+                    st.metric("置信度", f"{intent_result.get('confidence', 0):.2f}")
+                
+                # 展示推理过程
+                with st.expander("🔍 查看Supervisor推理过程"):
+                    st.json(intent_result)
+            
+            st.success("✅ Supervisor完成意图识别和任务规划")
+            
+            # Step 2: 运行完整工作流
+            st.markdown("#### ⚙️ Step 2: 多Agent协作执行")
+            
+            # 创建进度条
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            # 运行工作流并捕获中间状态
+            try:
+                # 使用stream来获取每个节点执行后的状态
+                from graph.state import create_initial_state
+                
+                initial_state = create_initial_state(
+                    user_query=user_query,
+                    session_id=f"demo_{int(time.time())}"
+                )
+                
+                config = {"configurable": {"thread_id": f"demo_{int(time.time())}"}}
+                
+                step_count = 0
+                agent_steps = []
+                
+                for state in workflow.app.stream(initial_state, config):
+                    step_count += 1
+                    progress_bar.progress(min(step_count * 20, 100))
+                    
+                    # 提取当前节点信息
+                    for node_name, node_state in state.items():
+                        if node_name == "supervisor":
+                            status_text.text("🎯 Supervisor: 任务规划中...")
+                            agent_steps.append({
+                                "agent": "Supervisor",
+                                "action": "任务规划",
+                                "status": "完成"
+                            })
+                        elif node_name == "query_agent":
+                            status_text.text("📊 Query Agent: 执行数据查询...")
+                            agent_steps.append({
+                                "agent": "Query Agent",
+                                "action": "数据查询",
+                                "status": "完成"
+                            })
+                        elif node_name == "analysis_agent":
+                            status_text.text("📈 Analysis Agent: 执行数据分析...")
+                            agent_steps.append({
+                                "agent": "Analysis Agent",
+                                "action": "数据分析",
+                                "status": "完成"
+                            })
+                        elif node_name == "visualization_agent":
+                            status_text.text("📊 Visualization Agent: 生成图表...")
+                            agent_steps.append({
+                                "agent": "Visualization Agent",
+                                "action": "生成可视化",
+                                "status": "完成"
+                            })
+                        elif node_name == "integrate":
+                            status_text.text("🔄 整合结果...")
+                
+                progress_bar.progress(100)
+                
+            except Exception as e:
+                st.error(f"工作流执行失败: {str(e)}")
+                import traceback
+                with st.expander("查看错误详情"):
+                    st.code(traceback.format_exc())
+                return
+            
+            # 展示Agent执行步骤
+            st.markdown("#### 📋 Agent执行流程")
+            for i, step in enumerate(agent_steps, 1):
+                st.markdown(f"**{i}. {step['agent']}** - {step['action']} ✅")
+        
+        # 展示最终结果
+        with result_container:
+            st.markdown("---")
+            st.markdown("### 📊 最终结果")
+            
+            # 再次运行获取最终状态
+            final_state = None
+            for state in workflow.app.stream(initial_state, config):
+                final_state = state
+            
+            if final_state:
+                # 提取最终状态数据
+                for node_name, node_state in final_state.items():
+                    # 最终响应
+                    if "final_response" in node_state and node_state["final_response"]:
+                        st.markdown("#### 💬 最终响应")
+                        st.markdown(node_state["final_response"])
+                    
+                    # 查询结果
+                    if node_state.get("query_result"):
+                        qr = node_state["query_result"]
+                        if qr.get("executed"):
+                            st.markdown("#### 📋 查询结果")
+                            st.code(qr.get("sql", ""), language="sql")
+                            if qr.get("data"):
+                                st.dataframe(qr["data"][:10])
+                    
+                    # 分析结果
+                    if node_state.get("analysis_result"):
+                        ar = node_state["analysis_result"]
+                        if ar.get("insights"):
+                            st.markdown("#### 💡 分析洞察")
+                            for insight in ar["insights"]:
+                                st.markdown(f"- {insight}")
+                    
+                    # 可视化结果
+                    if node_state.get("visualization_result"):
+                        vr = node_state["visualization_result"]
+                        if vr.get("file_path"):
+                            st.markdown("#### 📊 可视化图表")
+                            import os
+                            if os.path.exists(vr["file_path"]):
+                                st.image(vr["file_path"])
+                                st.caption(vr.get("description", ""))
+                    
+                    # 中间步骤（展示ReAct循环）
+                    if node_state.get("intermediate_steps"):
+                        st.markdown("#### 🔄 执行轨迹（ReAct循环）")
+                        with st.expander("查看详细执行步骤"):
+                            for j, step in enumerate(node_state["intermediate_steps"], 1):
+                                st.markdown(f"**Step {j}:**")
+                                st.json(step)
+            
+            st.success("🎉 完整工作流执行完成！")
+
+
