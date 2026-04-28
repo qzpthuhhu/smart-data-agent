@@ -1002,6 +1002,75 @@ def render_workflow_demo_page():
             st.markdown("#### 📋 Agent执行流程")
             for i, step in enumerate(agent_steps, 1):
                 st.markdown(f"**{i}. {step['agent']}** - {step['action']} ✅")
+            
+            # 展示每个Agent的详细执行过程
+            st.markdown("#### 🔍 Agent详细执行过程")
+            
+            # 获取最新的状态
+            final_state_for_details = None
+            for state in workflow.app.stream(initial_state, config):
+                final_state_for_details = state
+        
+        
+        # 展示每个Agent的详细执行过程
+        if final_state_for_details:
+            st.markdown("---")
+            st.markdown("#### 🤖 各Agent执行详情")
+            
+            for node_name, node_state in final_state_for_details.items():
+                if node_name == "query_agent":
+                    st.markdown("##### 📊 Query Agent 执行详情")
+                    with st.expander("查看Query Agent执行代码"):
+                        if hasattr(node_state.get("query_result"), "sql"):
+                            st.code(f"""# 生成的SQL语句:
+{node_state["query_result"].sql}
+
+# 执行结果:
+# 行数: {node_state["query_result"].row_count}
+# 执行时间: {node_state["query_result"].execution_time:.3f}s
+""", language="python")
+                        if node_state.get("intermediate_steps"):
+                            st.markdown("**执行步骤:**")
+                            for step in node_state["intermediate_steps"][-5:]:
+                                if step.get("agent") == "query_agent":
+                                    st.json(step)
+                
+                elif node_name == "analysis_agent":
+                    st.markdown("##### 📈 Analysis Agent 执行详情")
+                    with st.expander("查看Analysis Agent执行代码"):
+                        ar = node_state.get("analysis_result")
+                        if ar:
+                            stats_str = str(ar.statistics) if hasattr(ar, 'statistics') else "{}"
+                            st.code(f"""# 统计分析结果:
+{stats_str}
+
+# 发现的趋势数量: {len(ar.trends) if hasattr(ar, 'trends') else 0}
+# 异常点数量: {len(ar.anomalies) if hasattr(ar, 'anomalies') else 0}
+# 生成的洞察数量: {len(ar.insights) if hasattr(ar, 'insights') else 0}
+""", language="python")
+                        if node_state.get("intermediate_steps"):
+                            st.markdown("**分析步骤:**")
+                            for step in node_state["intermediate_steps"][-5:]:
+                                if step.get("agent") == "analysis_agent":
+                                    st.json(step)
+                
+                elif node_name == "visualization_agent":
+                    st.markdown("##### 📊 Visualization Agent 执行详情")
+                    with st.expander("查看Visualization Agent执行代码"):
+                        vr = node_state.get("visualization_result")
+                        if vr:
+                            st.code(f"""# 图表类型: {vr.chart_type if hasattr(vr, 'chart_type') else 'N/A'}
+# 文件路径: {vr.file_path if hasattr(vr, 'file_path') else 'N/A'}
+# 保存状态: {vr.saved if hasattr(vr, 'saved') else False}
+
+# 图表描述:
+{vr.description if hasattr(vr, 'description') else 'N/A'}
+""", language="python")
+                        if node_state.get("intermediate_steps"):
+                            st.markdown("**可视化步骤:**")
+                            for step in node_state["intermediate_steps"][-5:]:
+                                if step.get("agent") == "visualization_agent":
+                                    st.json(step)
         
         # 展示最终结果
         with result_container:
@@ -1024,29 +1093,34 @@ def render_workflow_demo_page():
                     # 查询结果
                     if node_state.get("query_result"):
                         qr = node_state["query_result"]
-                        if qr.get("executed"):
+                        # QueryResult是dataclass对象
+                        if hasattr(qr, 'executed') and qr.executed:
                             st.markdown("#### 📋 查询结果")
-                            st.code(qr.get("sql", ""), language="sql")
-                            if qr.get("data"):
-                                st.dataframe(qr["data"][:10])
+                            if hasattr(qr, 'sql') and qr.sql:
+                                st.code(qr.sql, language="sql")
+                            if hasattr(qr, 'data') and qr.data:
+                                st.dataframe(qr.data[:10])
                     
                     # 分析结果
                     if node_state.get("analysis_result"):
                         ar = node_state["analysis_result"]
-                        if ar.get("insights"):
+                        # AnalysisResult是dataclass对象
+                        if hasattr(ar, 'insights') and ar.insights:
                             st.markdown("#### 💡 分析洞察")
-                            for insight in ar["insights"]:
+                            for insight in ar.insights:
                                 st.markdown(f"- {insight}")
                     
                     # 可视化结果
                     if node_state.get("visualization_result"):
                         vr = node_state["visualization_result"]
-                        if vr.get("file_path"):
+                        # VisualizationResult是dataclass对象
+                        if hasattr(vr, 'file_path') and vr.file_path:
                             st.markdown("#### 📊 可视化图表")
                             import os
-                            if os.path.exists(vr["file_path"]):
-                                st.image(vr["file_path"])
-                                st.caption(vr.get("description", ""))
+                            if os.path.exists(vr.file_path):
+                                st.image(vr.file_path)
+                                if hasattr(vr, 'description') and vr.description:
+                                    st.caption(vr.description)
                     
                     # 中间步骤（展示ReAct循环）
                     if node_state.get("intermediate_steps"):
