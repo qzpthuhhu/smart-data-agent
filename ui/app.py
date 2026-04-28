@@ -92,7 +92,7 @@ st.markdown("""
 def init_session_state():
     """初始化会话状态"""
     if 'workflow' not in st.session_state:
-        DataAnalysisWorkflow(use_checkpointer=False) = DataAnalysisWorkflow(use_checkpointer=True)
+        st.session_state.workflow = DataAnalysisWorkflow(use_checkpointer=True)
     
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
